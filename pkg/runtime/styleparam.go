@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/deepmap/oapi-codegen/pkg/types"
+	"github.com/paulbdavis/oapi-codegen/pkg/types"
 )
 
 // Parameter escaping works differently based on where a header is found

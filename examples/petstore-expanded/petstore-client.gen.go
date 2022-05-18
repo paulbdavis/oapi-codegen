@@ -14,7 +14,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/deepmap/oapi-codegen/pkg/runtime"
+	"github.com/paulbdavis/oapi-codegen/pkg/runtime"
 )
 
 // Error defines model for Error.
