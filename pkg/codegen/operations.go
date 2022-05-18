@@ -109,6 +109,9 @@ func (pd *ParameterDefinition) Explode() bool {
 
 func (pd ParameterDefinition) GoVariableName() string {
 	name := LowercaseFirstCharacter(pd.GoName())
+	if name == "iD" {
+		name = "id"
+	}
 	if IsGoKeyword(name) {
 		name = "p" + UppercaseFirstCharacter(name)
 	}
@@ -657,6 +660,46 @@ func GenerateTypesForOperations(t *template.Template, ops []OperationDefinition)
 	return buf.String(), nil
 }
 
+// Generates code for all types produced
+func GenerateKitTypesForOperations(t *template.Template, ops []OperationDefinition) (string, error) {
+	var buf bytes.Buffer
+	w := bufio.NewWriter(&buf)
+
+	addTypes, err := GenerateTemplates([]string{"kit/kit-req-res.tmpl"}, t, ops)
+	if err != nil {
+		return "", fmt.Errorf("error generating type boilerplate for operations: %w", err)
+	}
+	if _, err := w.WriteString(addTypes); err != nil {
+		return "", fmt.Errorf("error writing boilerplate to buffer: %w", err)
+
+	}
+
+	// Generate boiler plate for all additional types.
+	// var td []TypeDefinition
+	// for _, op := range ops {
+	// 	td = append(td, op.TypeDefinitions...)
+	// }
+
+	// addProps, err := GenerateAdditionalPropertyBoilerplate(t, td)
+	// if err != nil {
+	// 	return "", fmt.Errorf("error generating additional properties boilerplate for operations: %w", err)
+	// }
+
+	// if _, err := w.WriteString("\n"); err != nil {
+	// 	return "", fmt.Errorf("error generating additional properties boilerplate for operations: %w", err)
+	// }
+
+	// if _, err := w.WriteString(addProps); err != nil {
+	// 	return "", fmt.Errorf("error generating additional properties boilerplate for operations: %w", err)
+	// }
+
+	if err = w.Flush(); err != nil {
+		return "", fmt.Errorf("error flushing output buffer for server interface: %w", err)
+	}
+
+	return buf.String(), nil
+}
+
 // GenerateChiServer This function generates all the go code for the ServerInterface as well as
 // all the wrapper functions around our handlers.
 func GenerateChiServer(t *template.Template, operations []OperationDefinition) (string, error) {
@@ -673,6 +716,20 @@ func GenerateEchoServer(t *template.Template, operations []OperationDefinition) 
 // all the wrapper functions around our handlers.
 func GenerateGinServer(t *template.Template, operations []OperationDefinition) (string, error) {
 	return GenerateTemplates([]string{"gin/gin-interface.tmpl", "gin/gin-wrappers.tmpl", "gin/gin-register.tmpl"}, t, operations)
+}
+
+// GenerateKitServer This function generates all the go code for the ServerInterface as well as
+// all the wrapper functions around our handlers.
+func GenerateKitServer(t *template.Template, operations []OperationDefinition) (string, error) {
+	return GenerateTemplates([]string{
+		"kit/kit-interface.tmpl",
+		"kit/kit-endpoints.tmpl",
+		"kit/kit-middleware-logging.tmpl",
+		"kit/kit-middleware-metrics.tmpl",
+		"kit/kit-middleware-tracing.tmpl",
+		"kit/kit-handler.tmpl",
+		"kit/kit-debug.tmpl",
+	}, t, operations)
 }
 
 // Uses the template engine to generate the function which registers our wrappers

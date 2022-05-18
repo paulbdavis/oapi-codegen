@@ -38,6 +38,7 @@ type Options struct {
 	GenerateChiServer  bool              // GenerateChiServer specifies whether to generate chi server boilerplate
 	GenerateEchoServer bool              // GenerateEchoServer specifies whether to generate echo server boilerplate
 	GenerateGinServer  bool              // GenerateGinServer specifies whether to generate echo server boilerplate
+	GenerateKitServer  bool              // GenerateKitServer specifies whether to generate go-kit server boilerplate
 	GenerateClient     bool              // GenerateClient specifies whether to generate client boilerplate
 	GenerateTypes      bool              // GenerateTypes specifies whether to generate type definitions
 	EmbedSpec          bool              // Whether to embed the swagger spec in the generated code
@@ -192,6 +193,58 @@ func Generate(swagger *openapi3.T, packageName string, opts Options) (string, er
 		}
 	}
 
+	var kitServerOut string
+	if opts.GenerateKitServer {
+		typeDefinitions, err = GenerateKitTypeDefinitions(t, swagger, ops, opts.ExcludeSchemas)
+		if err != nil {
+			return "", fmt.Errorf("error generating type definitions: %w", err)
+		}
+
+		constantDefinitions, err = GenerateConstants(t, ops)
+		if err != nil {
+			return "", fmt.Errorf("error generating constants: %w", err)
+		}
+
+		kitServerOut, err = GenerateKitServer(t, ops)
+		if err != nil {
+			return "", fmt.Errorf("error generating Go handlers for Paths: %w", err)
+		}
+		importMapping["httptransport"] = goImport{
+			Name: "httptransport",
+			Path: "github.com/go-kit/kit/transport/http",
+		}
+		importMapping["kitlog"] = goImport{
+			Name: "kitlog",
+			Path: "github.com/go-kit/log",
+		}
+		importMapping["metrics"] = goImport{
+			Path: "github.com/go-kit/kit/metrics",
+		}
+		importMapping["trace"] = goImport{
+			Path: "go.opencensus.io/trace",
+		}
+		importMapping["oczipkin"] = goImport{
+			Name: "oczipkin",
+			Path: "contrib.go.opencensus.io/exporter/zipkin",
+		}
+		importMapping["httpreporter"] = goImport{
+			Name: "httpreporter",
+			Path: "github.com/openzipkin/zipkin-go/reporter/http",
+		}
+		importMapping["zipkin"] = goImport{
+			Name: "zipkin",
+			Path: "github.com/openzipkin/zipkin-go",
+		}
+		importMapping["stdprometheus"] = goImport{
+			Name: "stdprometheus",
+			Path: "github.com/prometheus/client_golang/prometheus",
+		}
+		importMapping["kitprometheus"] = goImport{
+			Name: "kitprometheus",
+			Path: "github.com/go-kit/kit/metrics/prometheus",
+		}
+	}
+
 	var clientOut string
 	if opts.GenerateClient {
 		clientOut, err = GenerateClient(t, ops)
@@ -272,6 +325,13 @@ func Generate(swagger *openapi3.T, packageName string, opts Options) (string, er
 		}
 	}
 
+	if opts.GenerateKitServer {
+		_, err = w.WriteString(kitServerOut)
+		if err != nil {
+			return "", fmt.Errorf("error writing server path handlers: %w", err)
+		}
+	}
+
 	if opts.EmbedSpec {
 		_, err = w.WriteString(inlinedSpec)
 		if err != nil {
@@ -336,6 +396,54 @@ func GenerateTypeDefinitions(t *template.Template, swagger *openapi3.T, ops []Op
 	}
 
 	typesOut, err := GenerateTypes(t, allTypes)
+	if err != nil {
+		return "", fmt.Errorf("error generating code for type definitions: %w", err)
+	}
+
+	allOfBoilerplate, err := GenerateAdditionalPropertyBoilerplate(t, allTypes)
+	if err != nil {
+		return "", fmt.Errorf("error generating allOf boilerplate: %w", err)
+	}
+
+	typeDefinitions := strings.Join([]string{enumsOut, typesOut, paramTypesOut, allOfBoilerplate}, "")
+	return typeDefinitions, nil
+}
+
+func GenerateKitTypeDefinitions(t *template.Template, swagger *openapi3.T, ops []OperationDefinition, excludeSchemas []string) (string, error) {
+	schemaTypes, err := GenerateTypesForSchemas(t, swagger.Components.Schemas, excludeSchemas)
+	if err != nil {
+		return "", fmt.Errorf("error generating Go types for component schemas: %w", err)
+	}
+
+	paramTypes, err := GenerateTypesForParameters(t, swagger.Components.Parameters)
+	if err != nil {
+		return "", fmt.Errorf("error generating Go types for component parameters: %w", err)
+	}
+	allTypes := append(schemaTypes, paramTypes...)
+
+	// responseTypes, err := GenerateTypesForResponses(t, swagger.Components.Responses)
+	// if err != nil {
+	// 	return "", fmt.Errorf("error generating Go types for component responses: %w", err)
+	// }
+	// allTypes = append(allTypes, responseTypes...)
+
+	// bodyTypes, err := GenerateTypesForRequestBodies(t, swagger.Components.RequestBodies)
+	// if err != nil {
+	// 	return "", fmt.Errorf("error generating Go types for component request bodies: %w", err)
+	// }
+	// allTypes = append(allTypes, bodyTypes...)
+
+	paramTypesOut, err := GenerateKitTypesForOperations(t, ops)
+	if err != nil {
+		return "", fmt.Errorf("error generating Go types for component request bodies: %w", err)
+	}
+
+	enumsOut, err := GenerateEnums(t, allTypes)
+	if err != nil {
+		return "", fmt.Errorf("error generating code for type enums: %w", err)
+	}
+
+	typesOut, err := GenerateKitTypes(t, allTypes)
 	if err != nil {
 		return "", fmt.Errorf("error generating code for type definitions: %w", err)
 	}
@@ -538,6 +646,31 @@ func GenerateTypes(t *template.Template, types []TypeDefinition) (string, error)
 	}
 
 	return GenerateTemplates([]string{"typedef.tmpl"}, t, context)
+}
+
+// Helper function to pass a bunch of types to the template engine, and buffer
+// its output into a string.
+func GenerateKitTypes(t *template.Template, types []TypeDefinition) (string, error) {
+	m := map[string]bool{}
+	ts := []TypeDefinition{}
+
+	for _, t := range types {
+		if found := m[t.TypeName]; found {
+			continue
+		}
+
+		m[t.TypeName] = true
+
+		ts = append(ts, t)
+	}
+
+	context := struct {
+		Types []TypeDefinition
+	}{
+		Types: ts,
+	}
+
+	return GenerateTemplates([]string{"kit/kit-types.tmpl"}, t, context)
 }
 
 func GenerateEnums(t *template.Template, types []TypeDefinition) (string, error) {

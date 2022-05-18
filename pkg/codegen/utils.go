@@ -83,7 +83,7 @@ func ToCamelCase(str string) string {
 			capNext = false
 		}
 	}
-	return n
+	return idReplace.ReplaceAllString(n, "ID$1")
 }
 
 // This function returns the keys of the given SchemaRef dictionary in sorted
@@ -571,8 +571,12 @@ func typeNamePrefix(name string) (prefix string) {
 
 // SchemaNameToTypeName converts a Schema name to a valid Go type name. It converts to camel case, and makes sure the name is
 // valid in Go
+
+var idReplace = regexp.MustCompile(`Id([^a-z]?)`)
+
 func SchemaNameToTypeName(name string) string {
-	return typeNamePrefix(name) + ToCamelCase(name)
+	name = typeNamePrefix(name) + ToCamelCase(name)
+	return idReplace.ReplaceAllString(name, "ID$1")
 }
 
 // According to the spec, additionalProperties may be true, false, or a
