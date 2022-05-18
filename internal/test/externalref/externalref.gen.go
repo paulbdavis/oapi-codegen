@@ -12,8 +12,8 @@ import (
 	"path"
 	"strings"
 
-	externalRef0 "github.com/paulbdavis/oapi-codegen/internal/test/externalref/packageA"
-	externalRef1 "github.com/paulbdavis/oapi-codegen/internal/test/externalref/packageB"
+	externalRef0 "github.com/deepmap/oapi-codegen/internal/test/externalref/packageA"
+	externalRef1 "github.com/deepmap/oapi-codegen/internal/test/externalref/packageB"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 

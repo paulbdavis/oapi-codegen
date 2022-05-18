@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/paulbdavis/oapi-codegen/pkg/types"
+	"github.com/deepmap/oapi-codegen/pkg/types"
 )
 
 // This function binds a parameter as described in the Path Parameters

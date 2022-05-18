@@ -214,8 +214,8 @@ func RegisterHandlersWithOptions(router *gin.Engine, si ServerInterface, options
 ```go
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/paulbdavis/oapi-codegen/examples/petstore-expanded/gin/api"
-	middleware "github.com/paulbdavis/oapi-codegen/pkg/gin-middleware"
+	"github.com/deepmap/oapi-codegen/examples/petstore-expanded/gin/api"
+	middleware "github.com/deepmap/oapi-codegen/pkg/gin-middleware"
 )
 
 type PetStoreImpl struct {}
@@ -431,7 +431,7 @@ which help you to use the various OpenAPI 3 Authentication mechanism.
 
 ```
     import (
-        "github.com/paulbdavis/oapi-codegen/pkg/securityprovider"
+        "github.com/deepmap/oapi-codegen/pkg/securityprovider"
     )
 
     func CreateSampleProviders() error {

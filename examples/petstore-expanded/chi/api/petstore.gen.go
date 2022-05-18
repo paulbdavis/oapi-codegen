@@ -13,7 +13,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/paulbdavis/oapi-codegen/pkg/runtime"
+	"github.com/deepmap/oapi-codegen/pkg/runtime"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 )
