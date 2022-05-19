@@ -755,6 +755,14 @@ func GenerateKitServer(t *template.Template, operations []OperationDefinition) (
 	}, t, operations)
 }
 
+// GenerateKitServiceStub This function generates all the go code for the ServerInterface as well as
+// all the wrapper functions around our handlers.
+func GenerateKitServiceStub(t *template.Template, operations []OperationDefinition) (string, error) {
+	return GenerateTemplates([]string{
+		"kit/kit-service-stub.tmpl",
+	}, t, operations)
+}
+
 // Uses the template engine to generate the function which registers our wrappers
 // as Echo path handlers.
 func GenerateClient(t *template.Template, ops []OperationDefinition) (string, error) {

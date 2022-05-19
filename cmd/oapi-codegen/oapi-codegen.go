@@ -125,6 +125,8 @@ func main() {
 			opts.GenerateGinServer = true
 		case "kit":
 			opts.GenerateKitServer = true
+		case "kit-service-stub":
+			opts.GenerateKitServiceStub = true
 		case "types":
 			opts.GenerateTypes = true
 		case "spec":
