@@ -40,6 +40,7 @@ type Options struct {
 	GenerateGinServer      bool              // GenerateGinServer specifies whether to generate echo server boilerplate
 	GenerateKitServer      bool              // GenerateKitServer specifies whether to generate go-kit server boilerplate
 	GenerateKitServiceStub bool              // GenerateKitServiceStub specifies whether to generate go-kit service stub implementation
+	GenerateKitClient      bool              // GenerateKitClient specifies whether to generate go-kit service client implementation
 	GenerateClient         bool              // GenerateClient specifies whether to generate client boilerplate
 	GenerateTypes          bool              // GenerateTypes specifies whether to generate type definitions
 	EmbedSpec              bool              // Whether to embed the swagger spec in the generated code
@@ -258,6 +259,18 @@ func Generate(swagger *openapi3.T, packageName string, opts Options) (string, er
 		}
 	}
 
+	var kitClientOut string
+	if opts.GenerateKitClient {
+		importMapping["kitlog"] = goImport{
+			Name: "kitlog",
+			Path: "github.com/go-kit/log",
+		}
+		kitClientOut, err = GenerateKitClient(t, ops)
+		if err != nil {
+			return "", fmt.Errorf("error generating Go handlers for Paths: %w", err)
+		}
+	}
+
 	var clientOut string
 	if opts.GenerateClient {
 		clientOut, err = GenerateClient(t, ops)
@@ -338,7 +351,7 @@ func Generate(swagger *openapi3.T, packageName string, opts Options) (string, er
 		}
 	}
 
-	if opts.GenerateKitServer || opts.GenerateKitServiceStub {
+	if opts.GenerateKitServer {
 		_, err = w.WriteString(kitServerOut)
 		if err != nil {
 			return "", fmt.Errorf("error writing server path handlers: %w", err)
@@ -347,6 +360,13 @@ func Generate(swagger *openapi3.T, packageName string, opts Options) (string, er
 
 	if opts.GenerateKitServiceStub {
 		_, err = w.WriteString(kitServiceStubOut)
+		if err != nil {
+			return "", fmt.Errorf("error writing server path handlers: %w", err)
+		}
+	}
+
+	if opts.GenerateKitClient {
+		_, err = w.WriteString(kitClientOut)
 		if err != nil {
 			return "", fmt.Errorf("error writing server path handlers: %w", err)
 		}
