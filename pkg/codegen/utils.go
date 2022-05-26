@@ -527,7 +527,7 @@ func SanitizeEnumNames(enumNames []string) map[string]string {
 	sanitizedDeDup := make(map[string]string, len(deDup))
 
 	for _, n := range deDup {
-		sanitized := SanitizeGoIdentity(SchemaNameToTypeName(n))
+		sanitized := SanitizeGoIdentity(SchemaNameToEnumValueName(strings.ToLower(n)))
 
 		if _, dup := dupCheck[sanitized]; !dup {
 			sanitizedDeDup[sanitized] = n
@@ -580,6 +580,10 @@ func typeNamePrefix(name string) (prefix string) {
 
 func SchemaNameToTypeName(name string) string {
 	return typeNamePrefix(name) + ToCamelCase(name)
+}
+
+func SchemaNameToEnumValueName(name string) string {
+	return typeNamePrefix(name) + ToCamelCase(strings.ReplaceAll(name, "_", "-"))
 }
 
 // According to the spec, additionalProperties may be true, false, or a

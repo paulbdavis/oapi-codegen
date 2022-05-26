@@ -309,7 +309,7 @@ func GenerateGoSchema(sref *openapi3.SchemaRef, path []string) (Schema, error) {
 			} else {
 				constNamePath = append(path, k)
 			}
-			outSchema.EnumValues[SchemaNameToTypeName(PathToTypeName(constNamePath))] = v
+			outSchema.EnumValues[SchemaNameToEnumValueName(PathToTypeName(constNamePath))] = v
 		}
 		if len(path) > 1 { // handle additional type only on non-toplevel types
 			typeName := SchemaNameToTypeName(PathToTypeName(path))
