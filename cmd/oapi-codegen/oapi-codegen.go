@@ -115,28 +115,12 @@ func main() {
 	}
 	for _, g := range cfg.GenerateTargets {
 		switch g {
-		case "client":
-			opts.GenerateClient = true
-		case "chi-server":
-			opts.GenerateChiServer = true
-		case "server":
-			opts.GenerateEchoServer = true
-		case "gin":
-			opts.GenerateGinServer = true
 		case "kit":
 			opts.GenerateKitServer = true
 		case "kit-service-stub":
 			opts.GenerateKitServiceStub = true
 		case "kit-client":
 			opts.GenerateKitClient = true
-		case "types":
-			opts.GenerateTypes = true
-		case "spec":
-			opts.EmbedSpec = true
-		case "skip-fmt":
-			opts.SkipFmt = true
-		case "skip-prune":
-			opts.SkipPrune = true
 		default:
 			fmt.Printf("unknown generate option %s\n", g)
 			flag.PrintDefaults()
