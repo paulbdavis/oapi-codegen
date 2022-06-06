@@ -417,7 +417,8 @@ func formatAndWrite(file string, w *bufio.Writer, buf *bytes.Buffer) error {
 	goCode := SanitizeCode(buf.String())
 	outBytes, err := imports.Process(file, []byte(goCode), nil)
 	if err != nil {
-		return fmt.Errorf("error formatting go code for %s: %w", file, err)
+		log.Printf("error formatting go code for %s: %s", file, err)
+		outBytes = []byte(goCode)
 	}
 
 	if _, err := os.Stat(file); os.IsNotExist(err) {
