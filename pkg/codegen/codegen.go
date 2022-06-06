@@ -20,6 +20,10 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"io/ioutil"
+	"log"
+	"os"
+	"path"
 	"runtime/debug"
 	"sort"
 	"strings"
@@ -29,20 +33,30 @@ import (
 	"golang.org/x/tools/imports"
 )
 
+const (
+	fileService           = "pkg/api/service.gen.go"
+	fileLogger            = "pkg/api/logger.gen.go"
+	fileTransport         = "pkg/api/transport.gen.go"
+	fileEndpoints         = "pkg/api/endpoints.gen.go"
+	fileTypes             = "pkg/api/types.gen.go"
+	fileMiddlewareLogging = "pkg/api/middleware-logging.gen.go"
+	fileMiddlewareTracing = "pkg/api/middleware-tracing.gen.go"
+	fileMiddlewareMetrics = "pkg/api/middleware-metrics.gen.go"
+	fileMiddlewareChaos   = "pkg/api/middleware-chaos.gen.go"
+	fileServiceStub       = "gen/service/service.stub.go"
+	fileClientStub        = "gen/client/client.stub.go"
+)
+
 // Embed the templates directory
 //go:embed templates
 var templates embed.FS
 
 // Options defines the optional code to generate.
 type Options struct {
-	GenerateChiServer      bool              // GenerateChiServer specifies whether to generate chi server boilerplate
-	GenerateEchoServer     bool              // GenerateEchoServer specifies whether to generate echo server boilerplate
-	GenerateGinServer      bool              // GenerateGinServer specifies whether to generate echo server boilerplate
 	GenerateKitServer      bool              // GenerateKitServer specifies whether to generate go-kit server boilerplate
 	GenerateKitServiceStub bool              // GenerateKitServiceStub specifies whether to generate go-kit service stub implementation
 	GenerateKitClient      bool              // GenerateKitClient specifies whether to generate go-kit service client implementation
 	GenerateClient         bool              // GenerateClient specifies whether to generate client boilerplate
-	GenerateTypes          bool              // GenerateTypes specifies whether to generate type definitions
 	EmbedSpec              bool              // Whether to embed the swagger spec in the generated code
 	SkipFmt                bool              // Whether to skip go imports on the generated code
 	SkipPrune              bool              // Whether to skip pruning unused components on the generated code
@@ -116,7 +130,7 @@ func constructImportMapping(importMapping map[string]string) importMap {
 // Generate uses the Go templating engine to generate all of our server wrappers from
 // the descriptions we've built up above from the schema objects.
 // opts defines
-func Generate(swagger *openapi3.T, packageName string, opts Options) (string, error) {
+func Generate(swagger *openapi3.T, packageName string, opts Options) (map[string]string, error) {
 	// This is global state
 	options = opts
 
@@ -139,7 +153,7 @@ func Generate(swagger *openapi3.T, packageName string, opts Options) (string, er
 	// above
 	err := LoadTemplates(templates, t)
 	if err != nil {
-		return "", fmt.Errorf("error parsing oapi-codegen templates: %w", err)
+		return nil, fmt.Errorf("error parsing oapi-codegen templates: %w", err)
 	}
 
 	// Override built-in templates with user-provided versions
@@ -147,306 +161,275 @@ func Generate(swagger *openapi3.T, packageName string, opts Options) (string, er
 		if _, ok := opts.UserTemplates[tpl.Name()]; ok {
 			utpl := t.New(tpl.Name())
 			if _, err := utpl.Parse(opts.UserTemplates[tpl.Name()]); err != nil {
-				return "", fmt.Errorf("error parsing user-provided template %q: %w", tpl.Name(), err)
+				return nil, fmt.Errorf("error parsing user-provided template %q: %w", tpl.Name(), err)
 			}
 		}
 	}
 
 	ops, err := OperationDefinitions(swagger)
 	if err != nil {
-		return "", fmt.Errorf("error creating operation definitions: %w", err)
+		return nil, fmt.Errorf("error creating operation definitions: %w", err)
 	}
 
-	var typeDefinitions, constantDefinitions string
-	if opts.GenerateTypes {
-		typeDefinitions, err = GenerateTypeDefinitions(t, swagger, ops, opts.ExcludeSchemas)
-		if err != nil {
-			return "", fmt.Errorf("error generating type definitions: %w", err)
-		}
-
-		constantDefinitions, err = GenerateConstants(t, ops)
-		if err != nil {
-			return "", fmt.Errorf("error generating constants: %w", err)
-		}
-
+	importMapping["httptransport"] = goImport{
+		Name: "httptransport",
+		Path: "github.com/go-kit/kit/transport/http",
+	}
+	importMapping["kitlog"] = goImport{
+		Name: "kitlog",
+		Path: "github.com/go-kit/log",
+	}
+	importMapping["metrics"] = goImport{
+		Path: "github.com/go-kit/kit/metrics",
+	}
+	importMapping["trace"] = goImport{
+		Path: "go.opencensus.io/trace",
+	}
+	importMapping["oczipkin"] = goImport{
+		Name: "oczipkin",
+		Path: "contrib.go.opencensus.io/exporter/zipkin",
+	}
+	importMapping["httpreporter"] = goImport{
+		Name: "httpreporter",
+		Path: "github.com/openzipkin/zipkin-go/reporter/http",
+	}
+	importMapping["zipkin"] = goImport{
+		Name: "zipkin",
+		Path: "github.com/openzipkin/zipkin-go",
+	}
+	importMapping["stdprometheus"] = goImport{
+		Name: "stdprometheus",
+		Path: "github.com/prometheus/client_golang/prometheus",
+	}
+	importMapping["kitprometheus"] = goImport{
+		Name: "kitprometheus",
+		Path: "github.com/go-kit/kit/metrics/prometheus",
 	}
 
-	var echoServerOut string
-	if opts.GenerateEchoServer {
-		echoServerOut, err = GenerateEchoServer(t, ops)
-		if err != nil {
-			return "", fmt.Errorf("error generating Go handlers for Paths: %w", err)
-		}
+	typeDefinitions, err := GenerateKitTypeDefinitions(t, swagger, ops, opts.ExcludeSchemas)
+	if err != nil {
+		return nil, fmt.Errorf("error generating type definitions: %w", err)
 	}
 
-	var chiServerOut string
-	if opts.GenerateChiServer {
-		chiServerOut, err = GenerateChiServer(t, ops)
-		if err != nil {
-			return "", fmt.Errorf("error generating Go handlers for Paths: %w", err)
-		}
+	constantDefinitions, err := GenerateConstants(t, ops)
+	if err != nil {
+		return nil, fmt.Errorf("error generating constants: %w", err)
 	}
 
-	var ginServerOut string
-	if opts.GenerateGinServer {
-		ginServerOut, err = GenerateGinServer(t, ops)
-		if err != nil {
-			return "", fmt.Errorf("error generating Go handlers for Paths: %w", err)
-		}
+	kitServiceOut, err := GenerateKitService(t, ops)
+	if err != nil {
+		return nil, fmt.Errorf("error generating Go handlers for Paths: %w", err)
 	}
 
-	var kitServerOut string
-	if opts.GenerateKitServer {
-		typeDefinitions, err = GenerateKitTypeDefinitions(t, swagger, ops, opts.ExcludeSchemas)
-		if err != nil {
-			return "", fmt.Errorf("error generating type definitions: %w", err)
-		}
-
-		constantDefinitions, err = GenerateConstants(t, ops)
-		if err != nil {
-			return "", fmt.Errorf("error generating constants: %w", err)
-		}
-
-		kitServerOut, err = GenerateKitServer(t, ops)
-		if err != nil {
-			return "", fmt.Errorf("error generating Go handlers for Paths: %w", err)
-		}
-		importMapping["httptransport"] = goImport{
-			Name: "httptransport",
-			Path: "github.com/go-kit/kit/transport/http",
-		}
-		importMapping["kitlog"] = goImport{
-			Name: "kitlog",
-			Path: "github.com/go-kit/log",
-		}
-		importMapping["metrics"] = goImport{
-			Path: "github.com/go-kit/kit/metrics",
-		}
-		importMapping["trace"] = goImport{
-			Path: "go.opencensus.io/trace",
-		}
-		importMapping["oczipkin"] = goImport{
-			Name: "oczipkin",
-			Path: "contrib.go.opencensus.io/exporter/zipkin",
-		}
-		importMapping["httpreporter"] = goImport{
-			Name: "httpreporter",
-			Path: "github.com/openzipkin/zipkin-go/reporter/http",
-		}
-		importMapping["zipkin"] = goImport{
-			Name: "zipkin",
-			Path: "github.com/openzipkin/zipkin-go",
-		}
-		importMapping["stdprometheus"] = goImport{
-			Name: "stdprometheus",
-			Path: "github.com/prometheus/client_golang/prometheus",
-		}
-		importMapping["kitprometheus"] = goImport{
-			Name: "kitprometheus",
-			Path: "github.com/go-kit/kit/metrics/prometheus",
-		}
+	kitLoggerOut, err := GenerateKitLogger(t, ops)
+	if err != nil {
+		return nil, fmt.Errorf("error generating Go handlers for Paths: %w", err)
 	}
 
-	var kitServiceStubOut string
-	if opts.GenerateKitServiceStub {
-		importMapping["kitlog"] = goImport{
-			Name: "kitlog",
-			Path: "github.com/go-kit/log",
-		}
-		kitServiceStubOut, err = GenerateKitServiceStub(t, ops)
-		if err != nil {
-			return "", fmt.Errorf("error generating Go handlers for Paths: %w", err)
-		}
+	kitTransportOut, err := GenerateKitTransport(t, ops)
+	if err != nil {
+		return nil, fmt.Errorf("error generating Go handlers for Paths: %w", err)
 	}
 
-	var kitClientOut string
-	if opts.GenerateKitClient {
-		importMapping["kitlog"] = goImport{
-			Name: "kitlog",
-			Path: "github.com/go-kit/log",
-		}
-		kitClientOut, err = GenerateKitClient(t, ops)
-		if err != nil {
-			return "", fmt.Errorf("error generating Go handlers for Paths: %w", err)
-		}
+	kitEndpointsOut, err := GenerateKitEndpoints(t, ops)
+	if err != nil {
+		return nil, fmt.Errorf("error generating Go handlers for Paths: %w", err)
 	}
 
-	var clientOut string
-	if opts.GenerateClient {
-		clientOut, err = GenerateClient(t, ops)
-		if err != nil {
-			return "", fmt.Errorf("error generating client: %w", err)
-		}
+	kitMiddlewareLoggingOut, err := GenerateKitMiddlewareLogging(t, ops)
+	if err != nil {
+		return nil, fmt.Errorf("error generating Go handlers for Paths: %w", err)
 	}
 
-	var clientWithResponsesOut string
-	if opts.GenerateClient {
-		clientWithResponsesOut, err = GenerateClientWithResponses(t, ops)
-		if err != nil {
-			return "", fmt.Errorf("error generating client with responses: %w", err)
-		}
+	kitMiddlewareTracingOut, err := GenerateKitMiddlewareTracing(t, ops)
+	if err != nil {
+		return nil, fmt.Errorf("error generating Go handlers for Paths: %w", err)
 	}
 
-	var inlinedSpec string
-	if opts.EmbedSpec {
-		inlinedSpec, err = GenerateInlinedSpec(t, importMapping, swagger)
-		if err != nil {
-			return "", fmt.Errorf("error generating Go handlers for Paths: %w", err)
-		}
+	kitMiddlewareMetricsOut, err := GenerateKitMiddlewareMetrics(t, ops)
+	if err != nil {
+		return nil, fmt.Errorf("error generating Go handlers for Paths: %w", err)
 	}
 
-	var buf bytes.Buffer
-	w := bufio.NewWriter(&buf)
+	kitMiddlewareChaosOut, err := GenerateKitMiddlewareChaos(t, ops)
+	if err != nil {
+		return nil, fmt.Errorf("error generating Go handlers for Paths: %w", err)
+	}
+
+	kitServiceStubOut, err := GenerateKitServiceStub(t, ops)
+	if err != nil {
+		return nil, fmt.Errorf("error generating Go handlers for Paths: %w", err)
+	}
+
+	kitClientOut, err := GenerateKitClient(t, ops)
+	if err != nil {
+		return nil, fmt.Errorf("error generating Go handlers for Paths: %w", err)
+	}
+
+	bufs := map[string]*bytes.Buffer{}
+	writers := map[string]*bufio.Writer{}
+
+	bufs[fileService] = &bytes.Buffer{}
+	bufs[fileLogger] = &bytes.Buffer{}
+	bufs[fileTransport] = &bytes.Buffer{}
+	bufs[fileEndpoints] = &bytes.Buffer{}
+	bufs[fileTypes] = &bytes.Buffer{}
+	bufs[fileMiddlewareLogging] = &bytes.Buffer{}
+	bufs[fileMiddlewareTracing] = &bytes.Buffer{}
+	bufs[fileMiddlewareMetrics] = &bytes.Buffer{}
+	bufs[fileMiddlewareChaos] = &bytes.Buffer{}
+
+	writers[fileService] = bufio.NewWriter(bufs[fileService])
+	writers[fileLogger] = bufio.NewWriter(bufs[fileLogger])
+	writers[fileTransport] = bufio.NewWriter(bufs[fileTransport])
+	writers[fileEndpoints] = bufio.NewWriter(bufs[fileEndpoints])
+	writers[fileTypes] = bufio.NewWriter(bufs[fileTypes])
+	writers[fileMiddlewareLogging] = bufio.NewWriter(bufs[fileMiddlewareLogging])
+	writers[fileMiddlewareTracing] = bufio.NewWriter(bufs[fileMiddlewareTracing])
+	writers[fileMiddlewareMetrics] = bufio.NewWriter(bufs[fileMiddlewareMetrics])
+	writers[fileMiddlewareChaos] = bufio.NewWriter(bufs[fileMiddlewareChaos])
 
 	externalImports := importMapping.GoImports()
 	importsOut, err := GenerateImports(t, externalImports, packageName)
 	if err != nil {
-		return "", fmt.Errorf("error generating imports: %w", err)
+		return nil, fmt.Errorf("error generating imports: %w", err)
 	}
 
-	_, err = w.WriteString(importsOut)
+	for file, w := range writers {
+		log.Printf("writing imports to buffer for %s", file)
+		_, err = w.WriteString(importsOut)
+		if err != nil {
+			return nil, fmt.Errorf("error writing imports: %w", err)
+		}
+	}
+
+	_, err = writers[fileTypes].WriteString(constantDefinitions)
 	if err != nil {
-		return "", fmt.Errorf("error writing imports: %w", err)
+		return nil, fmt.Errorf("error writing constants: %w", err)
 	}
 
-	_, err = w.WriteString(constantDefinitions)
+	_, err = writers[fileTypes].WriteString(typeDefinitions)
 	if err != nil {
-		return "", fmt.Errorf("error writing constants: %w", err)
+		return nil, fmt.Errorf("error writing type definitions: %w", err)
 	}
 
-	_, err = w.WriteString(typeDefinitions)
+	_, err = writers[fileService].WriteString(kitServiceOut)
 	if err != nil {
-		return "", fmt.Errorf("error writing type definitions: %w", err)
+		return nil, fmt.Errorf("error writing server path handlers: %w", err)
 	}
 
-	if opts.GenerateClient {
-		_, err = w.WriteString(clientOut)
-		if err != nil {
-			return "", fmt.Errorf("error writing client: %w", err)
-		}
-		_, err = w.WriteString(clientWithResponsesOut)
-		if err != nil {
-			return "", fmt.Errorf("error writing client: %w", err)
-		}
-	}
-
-	if opts.GenerateEchoServer {
-		_, err = w.WriteString(echoServerOut)
-		if err != nil {
-			return "", fmt.Errorf("error writing server path handlers: %w", err)
-		}
-	}
-
-	if opts.GenerateChiServer {
-		_, err = w.WriteString(chiServerOut)
-		if err != nil {
-			return "", fmt.Errorf("error writing server path handlers: %w", err)
-		}
-	}
-
-	if opts.GenerateGinServer {
-		_, err = w.WriteString(ginServerOut)
-		if err != nil {
-			return "", fmt.Errorf("error writing server path handlers: %w", err)
-		}
-	}
-
-	if opts.GenerateKitServer {
-		_, err = w.WriteString(kitServerOut)
-		if err != nil {
-			return "", fmt.Errorf("error writing server path handlers: %w", err)
-		}
-	}
-
-	if opts.GenerateKitServiceStub {
-		_, err = w.WriteString(kitServiceStubOut)
-		if err != nil {
-			return "", fmt.Errorf("error writing server path handlers: %w", err)
-		}
-	}
-
-	if opts.GenerateKitClient {
-		_, err = w.WriteString(kitClientOut)
-		if err != nil {
-			return "", fmt.Errorf("error writing server path handlers: %w", err)
-		}
-	}
-
-	if opts.EmbedSpec {
-		_, err = w.WriteString(inlinedSpec)
-		if err != nil {
-			return "", fmt.Errorf("error writing inlined spec: %w", err)
-		}
-	}
-
-	err = w.Flush()
+	_, err = writers[fileLogger].WriteString(kitLoggerOut)
 	if err != nil {
-		return "", fmt.Errorf("error flushing output buffer: %w", err)
+		return nil, fmt.Errorf("error writing server path handlers: %w", err)
 	}
+
+	_, err = writers[fileTransport].WriteString(kitTransportOut)
+	if err != nil {
+		return nil, fmt.Errorf("error writing server path handlers: %w", err)
+	}
+
+	_, err = writers[fileEndpoints].WriteString(kitEndpointsOut)
+	if err != nil {
+		return nil, fmt.Errorf("error writing server path handlers: %w", err)
+	}
+
+	_, err = writers[fileMiddlewareLogging].WriteString(kitMiddlewareLoggingOut)
+	if err != nil {
+		return nil, fmt.Errorf("error writing server path handlers: %w", err)
+	}
+
+	_, err = writers[fileMiddlewareTracing].WriteString(kitMiddlewareTracingOut)
+	if err != nil {
+		return nil, fmt.Errorf("error writing server path handlers: %w", err)
+	}
+
+	_, err = writers[fileMiddlewareMetrics].WriteString(kitMiddlewareMetricsOut)
+	if err != nil {
+		return nil, fmt.Errorf("error writing server path handlers: %w", err)
+	}
+
+	_, err = writers[fileMiddlewareChaos].WriteString(kitMiddlewareChaosOut)
+	if err != nil {
+		return nil, fmt.Errorf("error writing server path handlers: %w", err)
+	}
+
+	for file, w := range writers {
+		if err := formatAndWrite(file, w, bufs[file]); err != nil {
+			return nil, err
+		}
+	}
+
+	bufsStubs := map[string]*bytes.Buffer{}
+	writersStubs := map[string]*bufio.Writer{}
+	// add these in after so they can get their own import generation
+	bufsStubs[fileServiceStub] = &bytes.Buffer{}
+	bufsStubs[fileClientStub] = &bytes.Buffer{}
+
+	writersStubs[fileServiceStub] = bufio.NewWriter(bufsStubs[fileServiceStub])
+	writersStubs[fileClientStub] = bufio.NewWriter(bufsStubs[fileClientStub])
+
+	// service stub
+	importsOut, err = GenerateImports(t, externalImports, "service")
+	if err != nil {
+		return nil, fmt.Errorf("error generating imports: %w", err)
+	}
+	_, err = writersStubs[fileServiceStub].WriteString(importsOut)
+	if err != nil {
+		return nil, fmt.Errorf("error writing server path handlers: %w", err)
+	}
+	_, err = writersStubs[fileServiceStub].WriteString(kitServiceStubOut)
+	if err != nil {
+		return nil, fmt.Errorf("error writing server path handlers: %w", err)
+	}
+
+	// client stub
+	importsOut, err = GenerateImports(t, externalImports, "client")
+	if err != nil {
+		return nil, fmt.Errorf("error generating imports: %w", err)
+	}
+	_, err = writersStubs[fileClientStub].WriteString(importsOut)
+	if err != nil {
+		return nil, fmt.Errorf("error writing server path handlers: %w", err)
+	}
+	_, err = writersStubs[fileClientStub].WriteString(kitClientOut)
+	if err != nil {
+		return nil, fmt.Errorf("error writing server path handlers: %w", err)
+	}
+
+	for file, w := range writersStubs {
+		if err := formatAndWrite(file, w, bufsStubs[file]); err != nil {
+			return nil, err
+		}
+	}
+
+	return nil, nil
+}
+
+func formatAndWrite(file string, w *bufio.Writer, buf *bytes.Buffer) error {
+
+	if err := w.Flush(); err != nil {
+		return fmt.Errorf("error flushing output buffer for %s: %w", file, err)
+	}
+
+	log.Printf("formatting and writing %s", file)
 
 	// remove any byte-order-marks which break Go-Code
 	goCode := SanitizeCode(buf.String())
-
-	// The generation code produces unindented horrors. Use the Go Imports
-	// to make it all pretty.
-	if opts.SkipFmt {
-		return goCode, nil
-	}
-
-	outBytes, err := imports.Process(packageName+".go", []byte(goCode), nil)
+	outBytes, err := imports.Process(file, []byte(goCode), nil)
 	if err != nil {
-		fmt.Println(goCode)
-		return "", fmt.Errorf("error formatting Go code: %w", err)
-	}
-	return string(outBytes), nil
-}
-
-func GenerateTypeDefinitions(t *template.Template, swagger *openapi3.T, ops []OperationDefinition, excludeSchemas []string) (string, error) {
-	schemaTypes, err := GenerateTypesForSchemas(t, swagger.Components.Schemas, excludeSchemas)
-	if err != nil {
-		return "", fmt.Errorf("error generating Go types for component schemas: %w", err)
+		return fmt.Errorf("error formatting go code for %s: %w", file, err)
 	}
 
-	paramTypes, err := GenerateTypesForParameters(t, swagger.Components.Parameters)
-	if err != nil {
-		return "", fmt.Errorf("error generating Go types for component parameters: %w", err)
-	}
-	allTypes := append(schemaTypes, paramTypes...)
-
-	responseTypes, err := GenerateTypesForResponses(t, swagger.Components.Responses)
-	if err != nil {
-		return "", fmt.Errorf("error generating Go types for component responses: %w", err)
-	}
-	allTypes = append(allTypes, responseTypes...)
-
-	bodyTypes, err := GenerateTypesForRequestBodies(t, swagger.Components.RequestBodies)
-	if err != nil {
-		return "", fmt.Errorf("error generating Go types for component request bodies: %w", err)
-	}
-	allTypes = append(allTypes, bodyTypes...)
-
-	paramTypesOut, err := GenerateTypesForOperations(t, ops)
-	if err != nil {
-		return "", fmt.Errorf("error generating Go types for component request bodies: %w", err)
+	if _, err := os.Stat(file); os.IsNotExist(err) {
+		os.MkdirAll(path.Dir(file), 0700) // Create your file
 	}
 
-	enumsOut, err := GenerateEnums(t, allTypes)
-	if err != nil {
-		return "", fmt.Errorf("error generating code for type enums: %w", err)
+	if err := ioutil.WriteFile(file, []byte(outBytes), 0644); err != nil {
+		return fmt.Errorf("error writing generated go code to %s: %w", file, err)
 	}
 
-	typesOut, err := GenerateTypes(t, allTypes)
-	if err != nil {
-		return "", fmt.Errorf("error generating code for type definitions: %w", err)
-	}
+	return nil
 
-	allOfBoilerplate, err := GenerateAdditionalPropertyBoilerplate(t, allTypes)
-	if err != nil {
-		return "", fmt.Errorf("error generating allOf boilerplate: %w", err)
-	}
-
-	typeDefinitions := strings.Join([]string{enumsOut, typesOut, paramTypesOut, allOfBoilerplate}, "")
-	return typeDefinitions, nil
 }
 
 func GenerateKitTypeDefinitions(t *template.Template, swagger *openapi3.T, ops []OperationDefinition, excludeSchemas []string) (string, error) {
@@ -460,18 +443,6 @@ func GenerateKitTypeDefinitions(t *template.Template, swagger *openapi3.T, ops [
 		return "", fmt.Errorf("error generating Go types for component parameters: %w", err)
 	}
 	allTypes := append(schemaTypes, paramTypes...)
-
-	// responseTypes, err := GenerateTypesForResponses(t, swagger.Components.Responses)
-	// if err != nil {
-	// 	return "", fmt.Errorf("error generating Go types for component responses: %w", err)
-	// }
-	// allTypes = append(allTypes, responseTypes...)
-
-	// bodyTypes, err := GenerateTypesForRequestBodies(t, swagger.Components.RequestBodies)
-	// if err != nil {
-	// 	return "", fmt.Errorf("error generating Go types for component request bodies: %w", err)
-	// }
-	// allTypes = append(allTypes, bodyTypes...)
 
 	paramTypesOut, err := GenerateKitTypesForOperations(t, ops)
 	if err != nil {
@@ -661,31 +632,6 @@ func GenerateTypesForRequestBodies(t *template.Template, bodies map[string]*open
 		}
 	}
 	return types, nil
-}
-
-// Helper function to pass a bunch of types to the template engine, and buffer
-// its output into a string.
-func GenerateTypes(t *template.Template, types []TypeDefinition) (string, error) {
-	m := map[string]bool{}
-	ts := []TypeDefinition{}
-
-	for _, t := range types {
-		if found := m[t.TypeName]; found {
-			continue
-		}
-
-		m[t.TypeName] = true
-
-		ts = append(ts, t)
-	}
-
-	context := struct {
-		Types []TypeDefinition
-	}{
-		Types: ts,
-	}
-
-	return GenerateTemplates([]string{"typedef.tmpl"}, t, context)
 }
 
 // Helper function to pass a bunch of types to the template engine, and buffer

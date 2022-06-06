@@ -1,3 +1,4 @@
+// goflags -build
 package codegen
 
 import (
@@ -19,10 +20,8 @@ func TestExamplePetStoreCodeGeneration(t *testing.T) {
 	// Input vars for code generation:
 	packageName := "api"
 	opts := Options{
-		GenerateClient:     true,
-		GenerateEchoServer: true,
-		GenerateTypes:      true,
-		EmbedSpec:          true,
+		GenerateClient: true,
+		EmbedSpec:      true,
 	}
 
 	// Get a spec from the example PetStore definition:

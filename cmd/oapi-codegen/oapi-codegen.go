@@ -132,10 +132,6 @@ func main() {
 	opts.ExcludeTags = cfg.ExcludeTags
 	opts.ExcludeSchemas = cfg.ExcludeSchemas
 
-	if opts.GenerateEchoServer && opts.GenerateChiServer {
-		errExit("can not specify both server and chi-server targets simultaneously")
-	}
-
 	swagger, err := util.LoadSwagger(flag.Arg(0))
 	if err != nil {
 		errExit("error loading swagger spec in %s\n: %s", flag.Arg(0), err)
@@ -150,19 +146,10 @@ func main() {
 	opts.ImportMapping = cfg.ImportMapping
 	opts.OldMergeSchemas = cfg.OldAllOfOutput
 
-	code, err := codegen.Generate(swagger, cfg.PackageName, opts)
-	if err != nil {
+	if _, err := codegen.Generate(swagger, cfg.PackageName, opts); err != nil {
 		errExit("error generating code: %s\n", err)
 	}
 
-	if cfg.OutputFile != "" {
-		err = ioutil.WriteFile(cfg.OutputFile, []byte(code), 0644)
-		if err != nil {
-			errExit("error writing generated code to file: %s", err)
-		}
-	} else {
-		fmt.Print(code)
-	}
 }
 
 func loadTemplateOverrides(templatesDir string) (map[string]string, error) {
