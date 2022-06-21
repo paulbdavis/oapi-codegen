@@ -144,6 +144,46 @@ func fixCamelCaseAbbrev(str string) string {
 	return str
 }
 
+type keySlice []string
+
+func (keys keySlice) Len() int {
+	return len(keys)
+}
+
+func (keys keySlice) Less(i, j int) bool {
+	iKey := keys[i]
+	jKey := keys[j]
+
+	if strings.EqualFold(iKey, "id") {
+		return true
+	}
+	if strings.EqualFold(jKey, "id") {
+		return false
+	}
+	if len(iKey) <= 3 || len(jKey) <= 3 {
+		return iKey < jKey
+	}
+
+	iAt := iKey[len(iKey)-3:] == "_at"
+	jAt := jKey[len(jKey)-3:] == "_at"
+
+	if iAt && jAt {
+		return iKey < jKey
+	} else if iAt {
+		return false
+	} else if jAt {
+		return true
+	}
+
+	return iKey < jKey
+}
+
+func (keys keySlice) Swap(i, j int) {
+	tmpKey := keys[i]
+	keys[i] = keys[j]
+	keys[j] = tmpKey
+}
+
 // This function returns the keys of the given SchemaRef dictionary in sorted
 // order, since Golang scrambles dictionary keys
 func SortedSchemaKeys(dict map[string]*openapi3.SchemaRef) []string {
@@ -153,7 +193,7 @@ func SortedSchemaKeys(dict map[string]*openapi3.SchemaRef) []string {
 		keys[i] = key
 		i++
 	}
-	sort.Strings(keys)
+	sort.Stable(keySlice(keys))
 	return keys
 }
 
@@ -166,7 +206,7 @@ func SortedPathsKeys(dict openapi3.Paths) []string {
 		keys[i] = key
 		i++
 	}
-	sort.Strings(keys)
+	sort.Stable(keySlice(keys))
 	return keys
 }
 
@@ -178,7 +218,7 @@ func SortedOperationsKeys(dict map[string]*openapi3.Operation) []string {
 		keys[i] = key
 		i++
 	}
-	sort.Strings(keys)
+	sort.Stable(keySlice(keys))
 	return keys
 }
 
@@ -190,7 +230,7 @@ func SortedResponsesKeys(dict openapi3.Responses) []string {
 		keys[i] = key
 		i++
 	}
-	sort.Strings(keys)
+	sort.Stable(keySlice(keys))
 	return keys
 }
 
@@ -202,7 +242,7 @@ func SortedContentKeys(dict openapi3.Content) []string {
 		keys[i] = key
 		i++
 	}
-	sort.Strings(keys)
+	sort.Stable(keySlice(keys))
 	return keys
 }
 
@@ -214,7 +254,7 @@ func SortedStringKeys(dict map[string]string) []string {
 		keys[i] = key
 		i++
 	}
-	sort.Strings(keys)
+	sort.Stable(keySlice(keys))
 	return keys
 }
 
@@ -226,7 +266,7 @@ func SortedParameterKeys(dict map[string]*openapi3.ParameterRef) []string {
 		keys[i] = key
 		i++
 	}
-	sort.Strings(keys)
+	sort.Stable(keySlice(keys))
 	return keys
 }
 
@@ -237,7 +277,7 @@ func SortedRequestBodyKeys(dict map[string]*openapi3.RequestBodyRef) []string {
 		keys[i] = key
 		i++
 	}
-	sort.Strings(keys)
+	sort.Stable(keySlice(keys))
 	return keys
 }
 
@@ -248,7 +288,7 @@ func SortedSecurityRequirementKeys(sr openapi3.SecurityRequirement) []string {
 		keys[i] = key
 		i++
 	}
-	sort.Strings(keys)
+	sort.Stable(keySlice(keys))
 	return keys
 }
 
