@@ -285,13 +285,13 @@ func (o *OperationDefinition) GetResponseTypeDefinitions() ([]ResponseTypeDefini
 					var typeName string
 					switch {
 					case StringInArray(contentTypeName, contentTypesJSON):
-						typeName = fmt.Sprintf("JSON%s", ToCamelCase(responseName))
+						typeName = fmt.Sprintf("JSON%s", ToPascalCase(responseName))
 					// YAML:
 					case StringInArray(contentTypeName, contentTypesYAML):
-						typeName = fmt.Sprintf("YAML%s", ToCamelCase(responseName))
+						typeName = fmt.Sprintf("YAML%s", ToPascalCase(responseName))
 					// XML:
 					case StringInArray(contentTypeName, contentTypesXML):
-						typeName = fmt.Sprintf("XML%s", ToCamelCase(responseName))
+						typeName = fmt.Sprintf("XML%s", ToPascalCase(responseName))
 					default:
 						continue
 					}
@@ -407,7 +407,7 @@ func OperationDefinitions(swagger *openapi3.T) ([]OperationDefinition, error) {
 				}
 				op.OperationID = op.OperationID
 			} else {
-				op.OperationID = ToCamelCase(op.OperationID)
+				op.OperationID = ToPascalCase(op.OperationID)
 			}
 
 			// These are parameters defined for the specific path method that
@@ -440,7 +440,7 @@ func OperationDefinitions(swagger *openapi3.T) ([]OperationDefinition, error) {
 				HeaderParams: FilterParameterDefinitionByType(allParams, "header"),
 				QueryParams:  FilterParameterDefinitionByType(allParams, "query"),
 				CookieParams: FilterParameterDefinitionByType(allParams, "cookie"),
-				OperationId:  ToCamelCase(op.OperationID),
+				OperationId:  ToPascalCase(op.OperationID),
 				// Replace newlines in summary.
 				Summary:         op.Summary,
 				Method:          opName,
@@ -526,14 +526,14 @@ func generateDefaultOperationID(opName string, requestPath string, pathOpCount i
 		(len(parts) < 3 ||
 			(len(parts) >= 3 && parts[2] != "{id}")) {
 		if isSinglePathWithParams(parts) {
-			return ToCamelCase(operationId + "-" + parts[1]), nil
+			return ToPascalCase(operationId + "-" + parts[1]), nil
 		}
 		for _, part := range parts {
 			if part != "" {
 				operationId = operationId + "-" + part
 			}
 		}
-		return ToCamelCase(operationId), nil
+		return ToPascalCase(operationId), nil
 	}
 
 	if len(parts) == 2 {
@@ -611,7 +611,7 @@ func generateDefaultOperationID(opName string, requestPath string, pathOpCount i
 
 	}
 
-	return ToCamelCase(operationId), nil
+	return ToPascalCase(operationId), nil
 }
 
 // This function turns the Swagger body definitions into a list of our body
