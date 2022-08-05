@@ -295,7 +295,20 @@ func Generate(swagger *openapi3.T, packageName string, opts Options) (map[string
 		return nil, fmt.Errorf("error generating imports: %w", err)
 	}
 
+	pkgDocOut, err := GeneratePkgDoc(t, externalImports, packageName)
+	if err != nil {
+		return nil, fmt.Errorf("error generating imports: %w", err)
+	}
+
 	for file, w := range writers {
+		if file == fileService {
+			_, err = w.WriteString(pkgDocOut)
+			if err != nil {
+				return nil, fmt.Errorf("error writing package doc to service file: %w", err)
+			}
+
+		}
+
 		log.Printf("writing imports to buffer for %s", file)
 		_, err = w.WriteString(importsOut)
 		if err != nil {
@@ -690,8 +703,14 @@ func GenerateEnums(t *template.Template, types []TypeDefinition) (string, error)
 	return GenerateTemplates([]string{"constants.tmpl"}, t, c)
 }
 
-// Generate our import statements and package definition.
-func GenerateImports(t *template.Template, externalImports []string, packageName string) (string, error) {
+type headerContext struct {
+	ExternalImports []string
+	PackageName     string
+	ModuleName      string
+	Version         string
+}
+
+func getHeaderContext(packageName string) headerContext {
 	// Read build version for incorporating into generated files
 	// Unit tests have ok=false, so we'll just use "unknown" for the
 	// version if we can't read this.
@@ -707,19 +726,26 @@ func GenerateImports(t *template.Template, externalImports []string, packageName
 		}
 	}
 
-	context := struct {
-		ExternalImports []string
-		PackageName     string
-		ModuleName      string
-		Version         string
-	}{
-		ExternalImports: externalImports,
-		PackageName:     packageName,
-		ModuleName:      modulePath,
-		Version:         moduleVersion,
+	return headerContext{
+		PackageName: packageName,
+		ModuleName:  modulePath,
+		Version:     moduleVersion,
 	}
 
+}
+
+// Generate our import statements and package definition.
+func GenerateImports(t *template.Template, externalImports []string, packageName string) (string, error) {
+
+	context := getHeaderContext(packageName)
+	context.ExternalImports = externalImports
+
 	return GenerateTemplates([]string{"imports.tmpl"}, t, context)
+}
+
+func GeneratePkgDoc(t *template.Template, externalImports []string, packageName string) (string, error) {
+	context := getHeaderContext(packageName)
+	return GenerateTemplates([]string{"package-doc.tmpl"}, t, context)
 }
 
 // Generate all the glue code which provides the API for interacting with
