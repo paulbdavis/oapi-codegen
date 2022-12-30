@@ -400,12 +400,12 @@ func OperationDefinitions(swagger *openapi3.T) ([]OperationDefinition, error) {
 			}
 			// We rely on OperationID to generate function names, it's required
 			if op.OperationID == "" {
-				op.OperationID, err = generateDefaultOperationID(opName, requestPath, len(pathOps))
+				oid, err := generateDefaultOperationID(opName, requestPath, len(pathOps))
 				if err != nil {
 					return nil, fmt.Errorf("error generating default OperationID for %s/%s: %s",
 						opName, requestPath, err)
 				}
-				op.OperationID = op.OperationID
+				op.OperationID = oid
 			} else {
 				op.OperationID = ToPascalCase(op.OperationID)
 			}

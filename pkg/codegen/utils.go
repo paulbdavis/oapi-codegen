@@ -357,7 +357,6 @@ func refPathToGoType(refPath string, local bool) (string, error) {
 // ./local/file.yml#/components/parameters/Bar  -> true
 // ./local/file.yml                             -> false
 // The function can be used to check whether RefPathToGoType($ref) is possible.
-//
 func IsGoTypeReference(ref string) bool {
 	return ref != "" && !IsWholeDocumentReference(ref)
 }
@@ -368,7 +367,6 @@ func IsGoTypeReference(ref string) bool {
 // ./local/file.yml                                     -> true
 // http://deepmap.com/schemas/document.json             -> true
 // http://deepmap.com/schemas/document.json#/Foo        -> false
-//
 func IsWholeDocumentReference(ref string) bool {
 	return ref != "" && !strings.ContainsAny(ref, "#")
 }
@@ -376,14 +374,15 @@ func IsWholeDocumentReference(ref string) bool {
 // This function converts a swagger style path URI with parameters to a
 // Echo compatible path URI. We need to replace all of Swagger parameters with
 // ":param". Valid input parameters are:
-//   {param}
-//   {param*}
-//   {.param}
-//   {.param*}
-//   {;param}
-//   {;param*}
-//   {?param}
-//   {?param*}
+//
+//	{param}
+//	{param*}
+//	{.param}
+//	{.param*}
+//	{;param}
+//	{;param*}
+//	{?param}
+//	{?param*}
 func SwaggerUriToEchoUri(uri string) string {
 	return pathParamRE.ReplaceAllString(uri, ":$1")
 }
@@ -391,14 +390,15 @@ func SwaggerUriToEchoUri(uri string) string {
 // This function converts a swagger style path URI with parameters to a
 // Chi compatible path URI. We need to replace all of Swagger parameters with
 // "{param}". Valid input parameters are:
-//   {param}
-//   {param*}
-//   {.param}
-//   {.param*}
-//   {;param}
-//   {;param*}
-//   {?param}
-//   {?param*}
+//
+//	{param}
+//	{param*}
+//	{.param}
+//	{.param*}
+//	{;param}
+//	{;param*}
+//	{?param}
+//	{?param*}
 func SwaggerUriToChiUri(uri string) string {
 	return pathParamRE.ReplaceAllString(uri, "{$1}")
 }
@@ -406,14 +406,15 @@ func SwaggerUriToChiUri(uri string) string {
 // This function converts a swagger style path URI with parameters to a
 // Gin compatible path URI. We need to replace all of Swagger parameters with
 // ":param". Valid input parameters are:
-//   {param}
-//   {param*}
-//   {.param}
-//   {.param*}
-//   {;param}
-//   {;param*}
-//   {?param}
-//   {?param*}
+//
+//	{param}
+//	{param*}
+//	{.param}
+//	{.param*}
+//	{;param}
+//	{;param*}
+//	{?param}
+//	{?param*}
 func SwaggerUriToGinUri(uri string) string {
 	return pathParamRE.ReplaceAllString(uri, ":$1")
 }

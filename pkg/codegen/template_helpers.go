@@ -267,6 +267,7 @@ func stripNewLines(s string) string {
 // This function map is passed to the template engine, and we can call each
 // function here by keyName from the template code.
 var TemplateFunctions = template.FuncMap{
+	"list":                       func(els ...any) []any { return els },
 	"genParamArgs":               genParamArgs,
 	"genParamTypes":              genParamTypes,
 	"genParamNames":              genParamNames,
