@@ -26,9 +26,11 @@ import (
 )
 
 var pathParamRE *regexp.Regexp
+var pathParamREPath *regexp.Regexp
 
 func init() {
 	pathParamRE = regexp.MustCompile("{[.;?]?([^{}*]+)\\*?}")
+	pathParamREPath = regexp.MustCompile("{.*}")
 }
 
 // Uppercase the first character in a string. This assumes UTF-8, so we have
@@ -401,6 +403,10 @@ func SwaggerUriToEchoUri(uri string) string {
 //	{?param*}
 func SwaggerUriToChiUri(uri string) string {
 	return pathParamRE.ReplaceAllString(uri, "{$1}")
+}
+
+func SwaggerUriToChiPathUri(uri string) string {
+	return pathParamRE.ReplaceAllString(uri, "*")
 }
 
 // This function converts a swagger style path URI with parameters to a
