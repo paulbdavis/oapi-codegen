@@ -34,18 +34,17 @@ import (
 )
 
 const (
-	fileService                = "pkg/api/service.gen.go"
-	fileLogger                 = "pkg/api/logger.gen.go"
-	fileTransport              = "pkg/api/transport.gen.go"
-	fileTransportMiddlewareJWT = "pkg/api/transport-middleware-jwt.gen.go"
-	fileEndpoints              = "pkg/api/endpoints.gen.go"
-	fileTypes                  = "pkg/api/types.gen.go"
-	fileMiddlewareLogging      = "pkg/api/middleware-logging.gen.go"
-	fileMiddlewareTracing      = "pkg/api/middleware-tracing.gen.go"
-	fileMiddlewareMetrics      = "pkg/api/middleware-metrics.gen.go"
-	fileMiddlewareChaos        = "pkg/api/middleware-chaos.gen.go"
-	fileServiceStub            = "gen/service/service.stub.go"
-	fileClientStub             = "gen/client/client.stub.go"
+	fileService           = "pkg/api/service.gen.go"
+	fileLogger            = "pkg/api/logger.gen.go"
+	fileTransport         = "pkg/api/transport.gen.go"
+	fileEndpoints         = "pkg/api/endpoints.gen.go"
+	fileTypes             = "pkg/api/types.gen.go"
+	fileMiddlewareLogging = "pkg/api/middleware-logging.gen.go"
+	fileMiddlewareTracing = "pkg/api/middleware-tracing.gen.go"
+	fileMiddlewareMetrics = "pkg/api/middleware-metrics.gen.go"
+	fileMiddlewareChaos   = "pkg/api/middleware-chaos.gen.go"
+	fileServiceStub       = "gen/service/service.stub.go"
+	fileClientStub        = "gen/client/client.stub.go"
 )
 
 // Embed the templates directory
@@ -207,11 +206,6 @@ func Generate(swagger *openapi3.T, packageName string, opts Options) (map[string
 		Name: "kitprometheus",
 		Path: "github.com/go-kit/kit/metrics/prometheus",
 	}
-	importMapping["jwt"] = goImport{
-		Name: "jwt",
-		Path: "github.com/golang-jwt/jwt/v4",
-	}
-
 	typeDefinitions, err := GenerateKitTypeDefinitions(t, swagger, ops, opts.ExcludeSchemas)
 	if err != nil {
 		return nil, fmt.Errorf("error generating type definitions: %w", err)
@@ -262,11 +256,6 @@ func Generate(swagger *openapi3.T, packageName string, opts Options) (map[string
 		return nil, fmt.Errorf("error generating Go handlers for Paths: %w", err)
 	}
 
-	// kitMiddlewareJWTOut, err := GenerateKitMiddlewareJWT(t, ops)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("error generating Go handlers for Paths: %w", err)
-	// }
-
 	kitServiceStubOut, err := GenerateKitServiceStub(t, ops)
 	if err != nil {
 		return nil, fmt.Errorf("error generating Go handlers for Paths: %w", err)
@@ -289,7 +278,6 @@ func Generate(swagger *openapi3.T, packageName string, opts Options) (map[string
 	bufs[fileMiddlewareTracing] = &bytes.Buffer{}
 	bufs[fileMiddlewareMetrics] = &bytes.Buffer{}
 	bufs[fileMiddlewareChaos] = &bytes.Buffer{}
-	bufs[fileTransportMiddlewareJWT] = &bytes.Buffer{}
 
 	writers[fileService] = bufio.NewWriter(bufs[fileService])
 	writers[fileLogger] = bufio.NewWriter(bufs[fileLogger])
@@ -300,7 +288,6 @@ func Generate(swagger *openapi3.T, packageName string, opts Options) (map[string
 	writers[fileMiddlewareTracing] = bufio.NewWriter(bufs[fileMiddlewareTracing])
 	writers[fileMiddlewareMetrics] = bufio.NewWriter(bufs[fileMiddlewareMetrics])
 	writers[fileMiddlewareChaos] = bufio.NewWriter(bufs[fileMiddlewareChaos])
-	writers[fileTransportMiddlewareJWT] = bufio.NewWriter(bufs[fileTransportMiddlewareJWT])
 
 	externalImports := importMapping.GoImports()
 	importsOut, err := GenerateImports(t, externalImports, packageName)
@@ -378,11 +365,6 @@ func Generate(swagger *openapi3.T, packageName string, opts Options) (map[string
 	if err != nil {
 		return nil, fmt.Errorf("error writing server path handlers: %w", err)
 	}
-
-	// _, err = writers[fileTransportMiddlewareJWT].WriteString(kitMiddlewareJWTOut)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("error writing server path handlers: %w", err)
-	// }
 
 	for file, w := range writers {
 		if err := formatAndWrite(file, w, bufs[file]); err != nil {
