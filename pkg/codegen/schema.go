@@ -103,6 +103,9 @@ func (p Property) GoVariableName() string {
 
 func (p Property) GoTypeDef() string {
 	typeDef := p.Schema.TypeDecl()
+	if len(typeDef) > 2 && typeDef[0:2] == "[]" {
+		return typeDef
+	}
 	if !p.Schema.SkipOptionalPointer &&
 		(!p.Required || p.Nullable || p.ReadOnly || p.WriteOnly) {
 
