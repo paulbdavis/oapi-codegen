@@ -1,7 +1,6 @@
 // WithChaosMiddleware wraps the provided service with chaos
 // middleware using the provided logger
 func WithChaosMiddleware(factor, max int, next Service) Service {
-	rand.Seed(time.Now().UnixNano())
 	return chaosMiddleware{factor, max, next}
 	}
     
