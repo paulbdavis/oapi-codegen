@@ -84,7 +84,7 @@ type {{.TypeName}} {{if and (opts.AliasTypes) (.CanAlias)}}={{end}} {{.Schema.Ty
 {{$typeName := .TypeName}}
 {{ range .Schema.Properties }}
 func (self {{$typeName}}) Get{{.GoFieldName}} () {{.Schema.GoType}} {
-{{- if .Required }}
+{{- if (or .Required .Schema.ArrayType) }}
 return self.{{.GoFieldName}}
 {{- else }}
 var ret {{.Schema.GoType}}
@@ -96,11 +96,11 @@ return *self.{{.GoFieldName}}
 }
 
 func (self *{{$typeName}}) Set{{.GoFieldName}} (val {{.Schema.GoType}}) {
-self.{{.GoFieldName}} = {{if not .Required }}&{{end}}val
+self.{{.GoFieldName}} = {{if and (not .Required) (not .Schema.ArrayType) }}&{{end}}val
 }
 
 func (self {{$typeName}}) With{{.GoFieldName}} (val {{.Schema.GoType}}) {{$typeName}} {
-self.{{.GoFieldName}} = {{if not .Required }}&{{end}}val
+self.{{.GoFieldName}} = {{if and (not .Required) (not .Schema.ArrayType) }}&{{end}}val
 return self
 }
 {{ end }}
