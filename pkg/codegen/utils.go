@@ -149,6 +149,7 @@ var commonInitialisms = map[string]*regexp.Regexp{
 	"USDTT":  regexp.MustCompile("UsdtT([^a-z]+|$)"),
 	"PDF":    regexp.MustCompile("Pdf([^a-z]+|$)"),
 	"PDF417": regexp.MustCompile("Pdf417([^a-z]+|$)"),
+	"PIN":    regexp.MustCompile("Pin([^a-z]+|$)"),
 	"SSN":    regexp.MustCompile("Ssn([^a-z]+|$)"),
 	"SMS":    regexp.MustCompile("Sms([^a-z]+|$)"),
 }
