@@ -21,6 +21,7 @@ import (
 	"text/template"
 
 	"github.com/labstack/echo/v4"
+	"golang.org/x/text/cases"
 )
 
 const (
@@ -285,7 +286,9 @@ var TemplateFunctions = template.FuncMap{
 	"getResponseTypeDefinitions": getResponseTypeDefinitions,
 	"toStringArray":              toStringArray,
 	"lower":                      strings.ToLower,
-	"title":                      strings.Title,
+	"title":                      cases.Title,
+	"contains":                   strings.Contains,
+	"endsWith":                   strings.HasSuffix,
 	"stripNewLines":              stripNewLines,
 	"sanitizeGoIdentity":         SanitizeGoIdentity,
 }
