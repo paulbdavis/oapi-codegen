@@ -175,31 +175,44 @@ if {{.GoVariableName}}Value == nil {
 
 
 {{define "kit-parameter-check" -}}
-{{ range .Schema.Properties }}
+{{ $thing := index . 0 }}
+{{ $prefix := index . 1 }}
+{{ range $thing.Schema.Properties }}
 {{ if .Required }}
+
   {{if eq .Schema.GoType "string" }}
 // checking required property '{{.JsonFieldName}}'
-  if body.{{.GoFieldName}} == "" {
+  if body{{$prefix}}.{{.GoFieldName}} == "" {
   	 return nil, Error(http.StatusBadRequest, "missing required value for '{{.JsonFieldName}}'")
   }
   {{ else if .Schema.ArrayType }}
 // checking required property '{{.JsonFieldName}}'
-  if len(body.{{.GoFieldName}}) == 0 {
+  if len(body{{$prefix}}.{{.GoFieldName}}) == 0 {
   	 return nil, Error(http.StatusBadRequest, "missing required value for '{{.JsonFieldName}}'")
   }
+  {{ else if and (eq .Schema.GoType "int64") (or (endsWith .JsonFieldName "_id") (endsWith .JsonFieldName "_by")) }}
+// checking required property '{{.JsonFieldName}}'
+  if body{{$prefix}}.{{.GoFieldName}} == 0 {
+  	 return nil, Error(http.StatusBadRequest, "missing required value for '{{.JsonFieldName}}'")
+  }
+  {{ else if gt (len .Schema.Properties) 0 }}
+  {{ template "kit-parameter-check" (list . (print $prefix "." .GoFieldName)) }}
   {{ else if gt (len .Schema.EnumValues) 0 }}
 // checking enum property '{{.JsonFieldName}}'
-  if !IsValid{{.Schema.GoType}}(body.{{.GoFieldName}}) {
+  if !IsValid{{.Schema.GoType}}(body{{$prefix}}.{{.GoFieldName}}) {
   	 return nil, Error(http.StatusBadRequest, "missing or invalid value for '{{.JsonFieldName}}'")
   }
   {{ end }}
+  
 {{ else }}
+
   {{  if gt (len .Schema.EnumValues) 0 }}
 // checking enum property '{{.JsonFieldName}}'
   if body.{{.GoFieldName}} != nil && !IsValid{{.Schema.GoType}}(*body.{{.GoFieldName}}) {
   	 return nil, Error(http.StatusBadRequest, "invalid value for '{{.JsonFieldName}}'")
   }
   {{ end }}
+  
 {{ end }}
   
 {{ end }}

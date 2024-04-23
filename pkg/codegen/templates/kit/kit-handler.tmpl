@@ -152,7 +152,7 @@ return nil, Errorw(http.StatusBadRequest, "decoding request body", err)
 {{ range .Schema.Properties }}
 // property '{{.JsonFieldName}}'
 {{end}}
-		    {{ template "kit-parameter-check" .  }}
+		    {{ template "kit-parameter-check" (list . "") }}
 
 return body, nil
 	    {{ else }}
