@@ -15,7 +15,7 @@ func (conf LoggingMiddlewareConfig) IsIgnoredMethod(method string) bool {
 // middleware using the provided logger
 func WithLoggingMiddleware(logger kitlog.Logger, next Service, loggingConf *LoggingMiddlewareConfig) Service {
 	if loggingConf == nil {
-		loggingConf = &LoggingMiddlewareConf{IgnoredMethods: []string{"HealthCheck"}}
+		loggingConf = &LoggingMiddlewareConfig{IgnoredMethods: []string{"HealthCheck"}}
 	}
 	return loggingMiddleware{
 		logger: kitlog.With(logger, "layer", "gokit"),
