@@ -1,12 +1,33 @@
+type LoggingMiddlewareConfig struct {
+	IgnoredMethods []string
+}
+
+func (conf LoggingMiddlewareConfig) IsIgnoredMethod(method string) bool {
+	for _, m := range conf.IgnoredMethods {
+		if m == method {
+			return true
+		}
+	}
+	return false
+}
+
 // WithLoggingMiddleware wraps the provided service with logging
 // middleware using the provided logger
-func WithLoggingMiddleware(logger kitlog.Logger, next Service) Service {
-	return loggingMiddleware{kitlog.With(logger, "layer", "gokit"), next}
+func WithLoggingMiddleware(logger kitlog.Logger, next Service, loggingConf *LoggingMiddlewareConfig) Service {
+	if loggingConf == nil {
+		loggingConf = &LoggingMiddlewareConf{IgnoredMethods: []string{"HealthCheck"}}
 	}
-    
+	return loggingMiddleware{
+		logger: kitlog.With(logger, "layer", "gokit"),
+		next: next,
+		conf: *loggingConf,
+	}
+}
+
 type loggingMiddleware struct {
 	logger kitlog.Logger
 	next   Service
+	conf LoggingMiddlewareConfig
 }
 
 {{range . -}}{{$opid := .OperationId}}
@@ -15,7 +36,7 @@ func (mw loggingMiddleware) {{$opid}}{{template "kit-function-signature" .}} {
 	var err error
 	defer func(begin time.Time) {
 	method := "{{$opid}}"
-	if method == "HealthCheck" && err == nil { return; }
+	if mw.conf.IsIgnoredMethod(method) && err == nil { return; }
 	duration := time.Since(begin)
 	ms := toFixed(float64(time.Since(begin))/float64(time.Millisecond), 2)
 		var coder httptransport.StatusCoder

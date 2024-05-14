@@ -11,7 +11,7 @@ func GetRouter(svc Service, logger kitlog.Logger, opts *RouterOptions) chi.Route
 	 r := chi.NewRouter()
 	 if logger != nil {
 	 	logger = kitlog.With(logger, "layer", "httptransport")
-	 	 r.Use(makeHTTPLoggingMiddleware(logger))
+	 	 r.Use(MakeHTTPLoggingMiddleware(logger, nil))
 	 }
 
 	prefix := ""
@@ -87,14 +87,36 @@ func (lrw *loggingResponseWriter) Write(data []byte) (int, error) {
 	return lrw.ResponseWriter.Write(data)
 }
 
-func makeHTTPLoggingMiddleware(logger kitlog.Logger) func(http.Handler) http.Handler {
-  return func(next http.Handler) http.Handler {
-      return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	  lwr := newLoggingResponseWriter(w)
-	defer func(begin time.Time) {
-	duration := time.Since(begin)
-	ms := toFixed(float64(time.Since(begin))/float64(time.Millisecond), 2)
-	if r.URL.Path == "/healthz" && lwr.statusCode == http.StatusOK { return; }
+type HTTPLoggingMiddlewareConfig struct {
+	IgnoredPaths []string
+}
+
+func (conf HTTPLoggingMiddlewareConfig) IsIgnoredMethod(reqPath string) bool {
+	for _, p := range conf.IgnoredPaths {
+		match, _ := path.Match(p, reqPath)
+		if match {
+			return true
+		}
+	}
+	return false
+}
+
+func MakeHTTPLoggingMiddleware(logger kitlog.Logger, loggerConf *HTTPLoggingMiddlewareConfig) func(http.Handler) http.Handler {
+	if loggerConf == nil {
+		loggerConf = &HTTPLoggingMiddlewareConfig{
+			IgnoredPaths: []string{"/healthz"},
+		}
+	}
+    
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			lwr := newLoggingResponseWriter(w)
+			defer func(begin time.Time) {
+				duration := time.Since(begin)
+				ms := toFixed(float64(time.Since(begin))/float64(time.Millisecond), 2)
+				if loggerConf.IsIgnoredMethod(r.URL.Path) && lwr.statusCode == http.StatusOK {
+					return
+				}
 				kvs := []interface{}{
 					"method", r.Method,
 					"path", r.URL.Path,
@@ -105,16 +127,16 @@ func makeHTTPLoggingMiddleware(logger kitlog.Logger) func(http.Handler) http.Han
 				if lwr.statusCode != http.StatusOK && lwr.body != nil {
 					var apiErr APIError
 					if err := json.Unmarshal(lwr.body, &apiErr); err != nil {
-						kvs = append(kvs, "error", string(lwr.body))	
+						kvs = append(kvs, "error", string(lwr.body))
 					} else {
 						kvs = append(kvs, "error", apiErr.Error())
 					}
 				}
 				logger.Log(kvs...)
-	}(time.Now())
-          next.ServeHTTP(lwr, r)
-      })
-  }
+			}(time.Now())
+			next.ServeHTTP(lwr, r)
+		})
+	}
 }
 
 
