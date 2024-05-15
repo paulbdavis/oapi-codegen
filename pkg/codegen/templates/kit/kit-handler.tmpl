@@ -10,7 +10,6 @@ Middleware []func(http.Handler) http.Handler
 func GetRouter(svc Service, logger kitlog.Logger, opts *RouterOptions) chi.Router {
 	 r := chi.NewRouter()
 	 if logger != nil {
-	 	logger = kitlog.With(logger, "layer", "httptransport")
 	 	 r.Use(MakeHTTPLoggingMiddleware(logger, nil))
 	 }
 
@@ -102,6 +101,7 @@ func (conf HTTPLoggingMiddlewareConfig) IsIgnoredMethod(reqPath string) bool {
 }
 
 func MakeHTTPLoggingMiddleware(logger kitlog.Logger, loggerConf *HTTPLoggingMiddlewareConfig) func(http.Handler) http.Handler {
+    logger = kitlog.With(logger, "layer", "httptransport")
 	if loggerConf == nil {
 		loggerConf = &HTTPLoggingMiddlewareConfig{
 			IgnoredPaths: []string{"/healthz"},
