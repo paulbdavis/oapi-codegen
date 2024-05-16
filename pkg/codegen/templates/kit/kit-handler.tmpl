@@ -76,10 +76,10 @@ func newLoggingResponseWriter(w http.ResponseWriter) *loggingResponseWriter {
 	}
 }
 
-    func (lrw *loggingResponseWriter) WriteHeader(code int) {
-        lrw.statusCode = code
-        lrw.ResponseWriter.WriteHeader(code)
-    }
+func (lrw *loggingResponseWriter) WriteHeader(code int) {
+    lrw.statusCode = code
+    lrw.ResponseWriter.WriteHeader(code)
+}
 
 func (lrw *loggingResponseWriter) Write(data []byte) (int, error) {
 	lrw.body = data
@@ -124,7 +124,7 @@ func MakeHTTPLoggingMiddleware(logger kitlog.Logger, loggerConf *HTTPLoggingMidd
 					"duration", duration,
 					"ms", ms,
 				}
-				if lwr.statusCode != http.StatusOK && lwr.body != nil {
+				if lwr.statusCode >= http.StatusBadRequest && lwr.body != nil {
 					var apiErr APIError
 					if err := json.Unmarshal(lwr.body, &apiErr); err != nil {
 						kvs = append(kvs, "error", string(lwr.body))
