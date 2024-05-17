@@ -162,6 +162,7 @@ var commonInitialisms = map[string]*regexp.Regexp{
 	"PIN":    regexp.MustCompile("Pin([^a-z]+|$)"),
 	"SSN":    regexp.MustCompile("Ssn([^a-z]+|$)"),
 	"SMS":    regexp.MustCompile("Sms([^a-z]+|$)"),
+	"TOS":    regexp.MustCompile("Tos([^a-z]+|$)"),
 }
 
 func fixCamelCaseAbbrev(str string) string {
