@@ -1,5 +1,6 @@
 type LoggingMiddlewareConfig struct {
 	IgnoredMethods []string
+    AppendLogKVs func(context.Context) []interface{}
 }
 
 func (conf LoggingMiddlewareConfig) IsIgnoredMethod(method string) bool {
@@ -35,31 +36,27 @@ type loggingMiddleware struct {
 func (mw loggingMiddleware) {{$opid}}{{template "kit-function-signature" .}} {
 	var err error
 	defer func(begin time.Time) {
-	method := "{{$opid}}"
-	if mw.conf.IsIgnoredMethod(method) && err == nil { return; }
-	duration := time.Since(begin)
-	ms := toFixed(float64(time.Since(begin))/float64(time.Millisecond), 2)
-		var coder httptransport.StatusCoder
-		if errors.As(err, &coder) {
-		mw.logger.Log(
-			"method", method,
-			"error", err.Error(),
-			"code", coder.StatusCode(),
-			"duration", duration,
-			"ms", ms,
-		)
-		} else {
-		args := []interface{}{
-			"method", method,
-			"duration", duration,
-			"ms", ms,
-		}
-		if err != nil {
-		  args = append(args, "error", err.Error())
-		}
-		mw.logger.Log(args...)
-		}
-	}(time.Now())
+	      method := "{{$opid}}"
+	      if mw.conf.IsIgnoredMethod(method) && err == nil { return; }
+	      duration := time.Since(begin)
+	      ms := toFixed(float64(time.Since(begin))/float64(time.Millisecond), 2)
+          var coder httptransport.StatusCoder
+	      kvs := []interface{}{
+		      "method", method,
+		      "duration", duration,
+		      "ms", ms,
+	      }
+	      if errors.As(err, &coder) {
+		     kvs = append(kvs, "code", coder.StatusCode())
+	      }
+	      if err != nil {
+		     kvs = append(kvs, "error", err.Error())
+	      }
+          if mw.conf.AppendLogKVs != nil {
+             kvs = append(kvs, mw.conf.AppendLogKVs(ctx)...)
+          }
+	      mw.logger.Log(kvs...)
+    }(time.Now())
 
 {{ if not .GetResponseTypeDefinitions }}
    err = mw.next.{{$opid}}{{template "kit-middleware-call" .}}

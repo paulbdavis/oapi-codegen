@@ -88,6 +88,7 @@ func (lrw *loggingResponseWriter) Write(data []byte) (int, error) {
 
 type HTTPLoggingMiddlewareConfig struct {
 	IgnoredPaths []string
+    AppendLogKVs func(context.Context) []interface{}
 }
 
 func (conf HTTPLoggingMiddlewareConfig) IsIgnoredMethod(reqPath string) bool {
@@ -124,6 +125,9 @@ func MakeHTTPLoggingMiddleware(logger kitlog.Logger, loggerConf *HTTPLoggingMidd
 					"duration", duration,
 					"ms", ms,
 				}
+                if loggerConf.AppendLogKVs != nil {
+                   kvs = append(kvs, loggerConf.AppendLogKVs(r.Context())...)
+                }
 				if lwr.statusCode >= http.StatusBadRequest && lwr.body != nil {
 					var apiErr APIError
 					if err := json.Unmarshal(lwr.body, &apiErr); err != nil {
